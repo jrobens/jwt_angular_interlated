@@ -24,6 +24,7 @@ export class JwtInterceptor implements HttpInterceptor {
         console.log('Didn\'t find a jwt key');
         this.authenticationService.refreshToken().subscribe(data => {
           request = this.authenticationService.addAuthHeader(request);
+          console.log('token returned ' + JSON.stringify(request));
         });
       }
     }

@@ -31,7 +31,7 @@ export class AuthenticationService {
   httpOptionsBasic = {
     headers: new HttpHeaders({
       'Content-Type': 'application/json',
-      Authorization: 'Basic ' + btoa('api' + ':' + findBasicToken()),
+      Authorization: 'Basic ' + btoa('api' + ':' + findToken()),
     }),
     withCredentials: true,
   };
@@ -80,6 +80,7 @@ export class AuthenticationService {
    */
   refreshToken(): Observable<any> {
     if (this.refreshTokenInProgress) {
+      console.log('Token refresh in progress.');
       return new Observable(observer => {
         this.subscribedObservable$.add(
           this.tokenRefreshed$.subscribe(() => {
@@ -90,13 +91,11 @@ export class AuthenticationService {
       });
     } else {
       this.refreshTokenInProgress = true;
+      console.log('Refreshing token.');
 
       // getNewAccessTokenByRefreshToken()
       return this.login().pipe(tap(newAuthToken => {
-          localStorage.setItem('currentUser', JSON.stringify(newAuthToken));
-          this.refreshTokenInProgress = false;
-          this.tokenRefreshedSource.next();
-          // Next item on queue
+          this.tokenRefreshedSource.next(this.currentUserSubject);
       }));
     }
   }

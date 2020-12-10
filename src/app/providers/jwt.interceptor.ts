@@ -1,9 +1,10 @@
 import {Injectable} from '@angular/core';
 import {HttpRequest, HttpHandler, HttpEvent, HttpInterceptor} from '@angular/common/http';
-import {Observable} from 'rxjs';
+import {Observable, Subscription, throwError} from 'rxjs';
 
 import {environment} from '../../environments/environment';
 import {AuthenticationService} from '../authentication.service';
+import {catchError, switchMap} from 'rxjs/operators';
 
 // Started here https://jasonwatmore.com/post/2020/04/19/angular-9-jwt-authentication-example-tutorial
 
@@ -19,34 +20,32 @@ export class JwtInterceptor implements HttpInterceptor {
     const isLoggedIn = currentUser && currentUser.token;
     const isApiUrl = request.url.startsWith(environment.data_host);
 
-    if (isApiUrl && !isLoggedIn) {
-      if (!request.url.endsWith('/jwt/token')) {
-        console.log('Didn\'t find a jwt key');
-        this.authenticationService.refreshToken().subscribe(data => {
+    if (isApiUrl && !isLoggedIn && !request.url.endsWith('/jwt/token')) {
+      console.log('No JWT key stored. Go find one.');
+      return this.authenticationService.refreshToken().pipe(
+        switchMap(() => {
           request = this.authenticationService.addAuthHeader(request);
-          console.log('token returned ' + JSON.stringify(request));
-        });
-      }
+          return next.handle(request);
+        })).pipe(catchError(this.errorHandler));
+    } else if (isApiUrl && isLoggedIn && !request.url.endsWith('/jwt/token')) {
+      request = this.authenticationService.addAuthHeader(request);
+      console.log('running authenticated request ' + JSON.stringify(request));
+      return next.handle(request);
+    } else {
+      return next.handle(request);
     }
-    // isLoggedIn will filter out the jwt request.
-    if (isLoggedIn && isApiUrl && !request.url.endsWith('/jwt/token')) {
-      // Same as this.authenticationService.addAuthHeader
-      request = request.clone({
-        setHeaders: {
-          Authorization: `Bearer ${currentUser.token}`
-        }
-      });
+  }
+
+  errorHandler(error) {
+    let errorMessage = '';
+    // this.log('bond data failed to load');
+    if (error.error instanceof ErrorEvent) {
+      // Get client-side error
+      errorMessage = error.error.message;
+    } else {
+      // Get server-side error
+      errorMessage = ` Error on refreshing token Error Code: ${error.status}\nMessage: ${error.message}`;
     }
-
-    // Testing only
-/*    if (!request.url.endsWith(('/jwt/token'))) {
-      request = request.clone({
-        setHeaders: {
-          Authorization: `Bearer ${oldToken}`
-        }
-      });
-    }*/
-
-    return next.handle(request);
+    return throwError(errorMessage);
   }
 }
